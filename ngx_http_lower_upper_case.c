@@ -12,7 +12,9 @@ typedef struct {
 
 typedef struct {
     uintptr_t                       action:1;
-    uintptr_t                       src_variable_index;
+    ngx_str_t                      *src_variable;
+    ngx_array_t                    *src_lengths;
+    ngx_array_t                    *src_values;
     uintptr_t                       dst_variable_index;
 } ngx_http_lucase_t;
 
@@ -25,14 +27,14 @@ static ngx_int_t ngx_http_do_lower_upper(ngx_http_request_t *r, ngx_http_variabl
 
 
 static ngx_command_t ngx_http_lower_upper_case_commands[] = {
-  { ngx_string("string_to_uppercase"),
-    NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+  { ngx_string("upper"),
+    NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE2,
     ngx_http_lower_upper_directive,
     NGX_HTTP_LOC_CONF_OFFSET,
     0,
     NULL },
-  { ngx_string("string_to_lowercase"),
-    NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+  { ngx_string("lower"),
+    NGX_HTTP_LOC_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE2,
     ngx_http_lower_upper_directive,
     NGX_HTTP_LOC_CONF_OFFSET,
     0,
@@ -70,7 +72,7 @@ ngx_module_t ngx_http_lower_upper_case_module = {
 };
 
 static void *
-ngx_http_php_session_create_loc_conf(ngx_conf_t *cf)
+ngx_http_lower_upper_case_create_loc_conf(ngx_conf_t *cf)
 {
     ngx_http_lower_upper_case_conf_t   *lucf;
 
@@ -106,7 +108,10 @@ ngx_http_lower_upper_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_http_lower_upper_case_conf_t       *lucf = conf;
     ngx_http_lucase_t                      *lucase;
     ngx_str_t                              *variable;
+    ngx_http_script_compile_t               sc;
     ngx_http_variable_t                    *v;
+
+    ngx_memzero(&sc, sizeof(ngx_http_script_compile_t));
 
     if (lucf->lucases == NULL) {
         lucf->lucases = ngx_array_create(cf->pool, 1, sizeof(ngx_http_lucase_t));
@@ -134,7 +139,21 @@ ngx_http_lower_upper_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    lucase->src_variable_index = ngx_http_get_variable_index(cf, &variable[2]);
+    lucase->dst_variable_index = ngx_http_get_variable_index(cf, &variable[1]);
+
+    lucase->src_variable = &variable[2];
+
+    sc.cf = cf;
+    sc.source = lucase->src_variable;
+    sc.lengths = &lucase->src_lengths;
+    sc.values = &lucase->src_values;
+    sc.variables = ngx_http_script_variables_count(lucase->src_variable);
+    sc.complete_lengths = 1;
+    sc.complete_values = 1;
+
+    if (ngx_http_script_compile(&sc) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
 
     if (variable[0].data[0] == 'u') {
         lucase->action = UPPER;
@@ -142,8 +161,7 @@ ngx_http_lower_upper_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         lucase->action = LOWER;
     }
 
-    lucase->dst_variable_index = ngx_http_get_variable_index(cf, &variable[1]);
-
+    v->data = lucase->dst_variable_index;
     v->get_handler = ngx_http_do_lower_upper;
 
     return NGX_CONF_OK;
@@ -158,7 +176,6 @@ ngx_http_do_lower_upper(ngx_http_request_t *r, ngx_http_variable_value_t *dst_v,
     u_char                                 *tmp_void;
     ngx_http_lucase_t                      *tmp_value;
     ngx_http_lucase_t                      *lucase;
-    ngx_http_variable_value_t              *src_v;
 
     tmp_void = (u_char*) lucf->lucases->elts;
 
@@ -168,29 +185,33 @@ ngx_http_do_lower_upper(ngx_http_request_t *r, ngx_http_variable_value_t *dst_v,
             lucase = tmp_value;
             break;
         }
+        tmp_void += lucf->lucases->size;
     }
     if (i == lucf->lucases->nelts) {
         return NGX_ERROR;
     }
+
+    if (ngx_http_script_run(r, lucase->src_variable, lucase->src_lengths->elts, 0, lucase->src_values->elts) == NULL) {
+        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "source evaluation failed");
+        return NGX_ERROR;
+    }
     
-    src_v = ngx_http_get_indexed_variable(r, lucase->src_variable_index);
+    dst_v->len = lucase->src_variable->len;
 
-    dst_v->len = src_v->len;
-
-    dst_v->data = ngx_pcalloc(r->pool, src_v->len);
+    dst_v->data = ngx_pcalloc(r->pool, lucase->src_variable->len);
     if (dst_v->data == NULL) {
         return NGX_ERROR;
     }
 
-    ngx_cpymem(dst_v->data, src_v->data, dst_v->len);
+    ngx_cpymem(dst_v->data, lucase->src_variable->data, dst_v->len);
 
     if (lucase->action == LOWER) {
         for (i = 0; i < dst_v->len; i++) {
-            ngx_tolower(dst_v->data[i]);
+            dst_v->data[i] = ngx_tolower(dst_v->data[i]);
         }
     } else {
         for (i = 0; i < dst_v->len; i++) {
-            ngx_toupper(dst_v->data[i]);
+            dst_v->data[i] = ngx_toupper(dst_v->data[i]);
         }
     }
 

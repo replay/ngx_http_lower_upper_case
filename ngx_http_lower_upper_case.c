@@ -125,6 +125,9 @@ ngx_http_lower_upper_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
+    lucase->src_lengths = NULL;
+    lucase->src_values = NULL;
+
     variable = cf->args->elts;
     if (variable[1].data[0] != '$') {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0, "invalid variable name \"%V\"", variable[1]);

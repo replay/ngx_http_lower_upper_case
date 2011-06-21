@@ -11,6 +11,6 @@ Example
         set $var1 "hello";
         set $var2 "WORLD";
 
-        upper $var3 "$var1 $var2"; // $var3 will be "HELLO WORLD"
-        lower $var4 "$var1 $var2"; // $var4 will be "hello world"
+        upper $var3 "$var1 $var2"; # $var3 will be "HELLO WORLD"
+        lower $var4 "$var1 $var2"; # $var4 will be "hello world"
 

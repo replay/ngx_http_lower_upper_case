@@ -174,7 +174,6 @@ ngx_http_do_lower_upper(ngx_http_request_t *r, ngx_http_variable_value_t *dst_v,
     ngx_http_lower_upper_case_conf_t       *lucf = ngx_http_get_module_loc_conf(r, ngx_http_lower_upper_case_module);
     ngx_uint_t                              i;
     u_char                                 *tmp_void;
-    //ngx_http_lucase_t                      *tmp_value;
     ngx_http_lucase_t                      *lucase;
 
     tmp_void = lucf->lucases->elts;
@@ -191,8 +190,6 @@ ngx_http_do_lower_upper(ngx_http_request_t *r, ngx_http_variable_value_t *dst_v,
     if (dst_v->data == NULL) {
         return NGX_ERROR;
     }
-
-    //ngx_cpymem(dst_v->data, lucase->src_variable->data, dst_v->len);
 
     if (lucase->action == LOWER) {
         for (i = 0; i < dst_v->len; i++) {

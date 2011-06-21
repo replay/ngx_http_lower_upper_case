@@ -15,7 +15,6 @@ typedef struct {
     ngx_str_t                      *src_variable;
     ngx_array_t                    *src_lengths;
     ngx_array_t                    *src_values;
-    uintptr_t                       dst_variable_index;
 } ngx_http_lucase_t;
 
 // create confs
@@ -142,8 +141,6 @@ ngx_http_lower_upper_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    lucase->dst_variable_index = ngx_http_get_variable_index(cf, &variable[1]);
-
     lucase->src_variable = &variable[2];
 
     sc.cf = cf;
@@ -164,7 +161,7 @@ ngx_http_lower_upper_directive(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         lucase->action = LOWER;
     }
 
-    v->data = lucase->dst_variable_index;
+    v->data = lucf->lucases->nelts - 1;
     v->get_handler = ngx_http_do_lower_upper;
 
     return NGX_CONF_OK;
@@ -177,22 +174,11 @@ ngx_http_do_lower_upper(ngx_http_request_t *r, ngx_http_variable_value_t *dst_v,
     ngx_http_lower_upper_case_conf_t       *lucf = ngx_http_get_module_loc_conf(r, ngx_http_lower_upper_case_module);
     ngx_uint_t                              i;
     u_char                                 *tmp_void;
-    ngx_http_lucase_t                      *tmp_value;
+    //ngx_http_lucase_t                      *tmp_value;
     ngx_http_lucase_t                      *lucase;
 
-    tmp_void = (u_char*) lucf->lucases->elts;
-
-    for (i = 0; i < lucf->lucases->nelts; i++) {
-        tmp_value = (ngx_http_lucase_t*) tmp_void;
-        if (tmp_value->dst_variable_index == data) {
-            lucase = tmp_value;
-            break;
-        }
-        tmp_void += lucf->lucases->size;
-    }
-    if (i == lucf->lucases->nelts) {
-        return NGX_ERROR;
-    }
+    tmp_void = lucf->lucases->elts;
+    lucase = (ngx_http_lucase_t*) &tmp_void[data];
 
     if (ngx_http_script_run(r, lucase->src_variable, lucase->src_lengths->elts, 0, lucase->src_values->elts) == NULL) {
         ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "source evaluation failed");
@@ -206,15 +192,15 @@ ngx_http_do_lower_upper(ngx_http_request_t *r, ngx_http_variable_value_t *dst_v,
         return NGX_ERROR;
     }
 
-    ngx_cpymem(dst_v->data, lucase->src_variable->data, dst_v->len);
+    //ngx_cpymem(dst_v->data, lucase->src_variable->data, dst_v->len);
 
     if (lucase->action == LOWER) {
         for (i = 0; i < dst_v->len; i++) {
-            dst_v->data[i] = ngx_tolower(dst_v->data[i]);
+            dst_v->data[i] = ngx_tolower(lucase->src_variable->data[i]);
         }
     } else {
         for (i = 0; i < dst_v->len; i++) {
-            dst_v->data[i] = ngx_toupper(dst_v->data[i]);
+            dst_v->data[i] = ngx_toupper(lucase->src_variable->data[i]);
         }
     }
 

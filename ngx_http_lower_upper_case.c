@@ -173,11 +173,13 @@ ngx_http_do_lower_upper(ngx_http_request_t *r, ngx_http_variable_value_t *dst_v,
 {
     ngx_http_lower_upper_case_conf_t       *lucf = ngx_http_get_module_loc_conf(r, ngx_http_lower_upper_case_module);
     ngx_uint_t                              i;
-    u_char                                 *tmp_void;
+    //u_char                                 *tmp_void;
     ngx_http_lucase_t                      *lucase;
 
-    tmp_void = lucf->lucases->elts;
-    lucase = (ngx_http_lucase_t*) &tmp_void[data];
+    //tmp_void = lucf->lucases->elts;
+    //lucase = (ngx_http_lucase_t*) (tmp_void + (data * lucf->lucases->size));
+    
+    lucase = (ngx_http_lucase_t*) ((u_char*)lucf->lucases->elts + (data * lucf->lucases->size));
 
     if (ngx_http_script_run(r, lucase->src_variable, lucase->src_lengths->elts, 0, lucase->src_values->elts) == NULL) {
         ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "source evaluation failed");
